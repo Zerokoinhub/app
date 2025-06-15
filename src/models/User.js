@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true
   },
+  name: {
+    type: String,
+    default: null
+  },
   role: {
     type: String,
     enum: ['user', 'admin'],
@@ -33,19 +37,24 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  walletAddresses: {
+    metamask: { type: String, default: null },
+    trustWallet: { type: String, default: null }
+  },
+  sessions: [{
+    sessionNumber: Number,
+    unlockedAt: Date,
+    isClaimed: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  lastSessionUnlockAt: Date,
+  sessionsResetAt: Date,
   createdAt: {
     type: Date,
     default: Date.now
-  },
-  sessions: [
-    {
-      sessionNumber: Number,        // 1 to 4
-      unlockedAt: Date,             // When this session was unlocked
-      isClaimed: Boolean            // Has the user claimed this session?
-    }
-  ],
-  lastSessionUnlockAt: Date,        // When the last session was unlocked
-  sessionsResetAt: Date             // When sessions were last reset (UTC midnight)
+  }
 });
 
 module.exports = mongoose.model('User', userSchema);
