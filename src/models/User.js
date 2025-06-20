@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  calculatorUsage: {
+    type: Number,
+    default: 0
   }
 });
 
