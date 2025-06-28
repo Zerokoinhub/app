@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const userRoutes = require('./routes/userRoutes');
 const tokenRoutes = require('./routes/tokenRoutes');  
 const withdrawRoutes = require('./routes/withdrawRoutes');
+const courseRoutes = require('./routes/courseRoutes');
 require('dotenv').config();
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mstorsulam786:1nkSX6KEOBmdx0ox@cluster0.frhaken.mongodb.net/zero_koin';
@@ -21,6 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/users', userRoutes);
 app.use('/api/token', tokenRoutes);  
 app.use("/api/withdraw", withdrawRoutes);
+app.use('/api/courses', courseRoutes);
 
 
 mongoose.connect(MONGODB_URI)
