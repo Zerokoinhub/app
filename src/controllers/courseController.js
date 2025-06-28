@@ -45,6 +45,23 @@ exports.getAllCourses = async (req, res) => {
   }
 };
 
+// Get course details by name (Public)
+exports.getCourseDetailsByName = async (req, res) => {
+  try {
+    const { courseName } = req.params;
+    const course = await Course.findOne({ courseName: { $regex: courseName, $options: 'i' }, isActive: true });
+
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found or not active' });
+    }
+
+    res.status(200).json({ course });
+  } catch (error) {
+    console.error('Get course details error:', error.message);
+    res.status(500).json({ message: 'Error fetching course details', error: error.message });
+  }
+};
+
 // Delete a course (Admin only)
 exports.deleteCourse = async (req, res) => {
   try {
@@ -97,4 +114,4 @@ exports.addSampleCourses = async (req, res) => {
     console.error('Add sample courses error:', error.message);
     res.status(500).json({ message: 'Error adding sample courses', error: error.message });
   }
-}; 
+};

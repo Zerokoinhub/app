@@ -271,3 +271,30 @@ exports.incrementCalculatorUsage = async (req, res) => {
     res.status(500).json({ message: 'Error incrementing calculator usage', error: error.message });
   }
 };
+
+exports.updateUserBalance = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { amount } = req.body;
+
+    if (typeof amount !== 'number') {
+      return res.status(400).json({ message: 'Amount must be a number' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.balance = (user.balance || 0) + amount;
+    await user.save();
+
+    res.status(200).json({
+      message: 'User balance updated successfully',
+      newBalance: user.balance,
+    });
+  } catch (error) {
+    console.error('Update user balance error:', error.message);
+    res.status(500).json({ message: 'Error updating user balance', error: error.message });
+  }
+};

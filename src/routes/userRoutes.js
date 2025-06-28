@@ -30,5 +30,6 @@ router.get('/profile', verifyFirebaseToken, userController.getUserProfile);
 router.put('/wallet-address', verifyFirebaseToken, userController.updateWalletAddress);
 router.get('/count', userController.getUserCount);
 router.put('/calculator-usage', verifyFirebaseToken, userController.incrementCalculatorUsage);
+router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance); // New route
 
 module.exports = router;
