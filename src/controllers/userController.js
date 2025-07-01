@@ -237,19 +237,33 @@ exports.unlockNextSession = async (req, res) => {
 exports.updateWalletAddress = async (req, res) => {
   try {
     const { uid } = req.user; // From Firebase auth middleware
-    const { walletAddress } = req.body;
+    const { walletType, walletAddress } = req.body;
+
+    if (!walletType || !walletAddress) {
+      return res.status(400).json({ message: 'walletType and walletAddress are required' });
+    }
 
     const user = await User.findOne({ firebaseUid: uid });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    user.walletAddress = walletAddress;
+    // Update the correct wallet address
+    if (walletType === 'metamask') {
+      user.walletAddresses.metamask = walletAddress;
+      user.walletStatus = 'Connected';
+    } else if (walletType === 'trustWallet') {
+      user.walletAddresses.trustWallet = walletAddress;
+      user.walletStatus = 'Connected';
+    } else {
+      return res.status(400).json({ message: 'Invalid walletType' });
+    }
+
     await user.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Wallet address updated successfully',
-      walletAddress: user.walletAddress
+      walletAddresses: user.walletAddresses
     });
   } catch (error) {
     console.error('Update wallet address error:', error.message);

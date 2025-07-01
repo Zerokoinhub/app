@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema({
     metamask: { type: String, default: null },
     trustWallet: { type: String, default: null }
   },
+  walletStatus: {
+    type: String,
+    enum: ['Not Connected', 'Connected'],
+    default: 'Not Connected'
+  },
   sessions: [{
     sessionNumber: Number,
     unlockedAt: Date,
