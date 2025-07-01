@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const crypto = require('crypto');
 const { getTodayUTC, getNextSessionUnlockTime, SESSIONS_PER_DAY } = require('../utils/session');
+const geoip = require('geoip-lite');
+const { getName } = require('country-list');
 
 const generateInviteCode = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -72,11 +74,17 @@ exports.syncFirebaseUser = async (req, res) => {
     let user = await User.findOne({ firebaseUid: uid });
     console.log('🔍 Existing user check result:', user ? 'Found' : 'Not found');
 
+    // Get IP and country
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const geo = geoip.lookup(ip);
+    const country = geo ? getName(geo.country) : null;
+
     if (user) {
       // Update existing user data
       console.log('📝 Updating existing user:', user.inviteCode);
       user.name = name || user.name;
       user.email = email || user.email;
+      user.country = country;
       try {
         await user.save();
         console.log('✅ User updated successfully');
@@ -93,7 +101,8 @@ exports.syncFirebaseUser = async (req, res) => {
           email: user.email,
           inviteCode: user.inviteCode,
           recentAmount: user.recentAmount,
-          balance: user.balance
+          balance: user.balance,
+          country: user.country
         }
       });
     } else {
@@ -106,9 +115,10 @@ exports.syncFirebaseUser = async (req, res) => {
 
       const newUser = new User({
         firebaseUid: uid,
-        name: name,
-        email: email,
-        inviteCode: inviteCode
+        name,
+        email,
+        inviteCode,
+        country
       });
 
       try {
@@ -127,7 +137,8 @@ exports.syncFirebaseUser = async (req, res) => {
           email: newUser.email,
           inviteCode: newUser.inviteCode,
           recentAmount: newUser.recentAmount,
-          balance: newUser.balance
+          balance: newUser.balance,
+          country: newUser.country
         }
       });
     }

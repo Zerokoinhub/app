@@ -58,6 +58,10 @@ const userSchema = new mongoose.Schema({
   calculatorUsage: {
     type: Number,
     default: 0
+  },
+  country: {
+    type: String,
+    default: null
   }
 });
 
