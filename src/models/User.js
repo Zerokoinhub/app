@@ -49,7 +49,13 @@ const userSchema = new mongoose.Schema({
   sessions: [{
     sessionNumber: Number,
     unlockedAt: Date,
+    completedAt: Date,
+    nextUnlockAt: Date,
     isClaimed: {
+      type: Boolean,
+      default: false
+    },
+    isLocked: {
       type: Boolean,
       default: false
     }
