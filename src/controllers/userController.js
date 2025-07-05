@@ -183,19 +183,36 @@ exports.getUserSessions = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Reset sessions if it's a new UTC day
-    const todayUTC = getTodayUTC();
-    if (!user.sessionsResetAt || user.sessionsResetAt < todayUTC) {
+    // Initialize sessions if they don't exist (for new users only)
+    if (!user.sessions || user.sessions.length === 0) {
       user.sessions = [];
       for (let i = 1; i <= SESSIONS_PER_DAY; i++) {
         user.sessions.push({
           sessionNumber: i,
-          unlockedAt: null,
-          isClaimed: false
+          unlockedAt: i === 1 ? new Date() : null, // First session is always unlocked
+          completedAt: null,
+          nextUnlockAt: null,
+          isClaimed: false,
+          isLocked: i > 1 // Sessions 2-4 start locked
         });
       }
-      user.lastSessionUnlockAt = null;
-      user.sessionsResetAt = todayUTC;
+      await user.save();
+    }
+
+    // Check and update locked sessions based on countdown
+    const now = new Date();
+    let sessionsUpdated = false;
+
+    for (let session of user.sessions) {
+      if (session.isLocked && session.nextUnlockAt && now >= session.nextUnlockAt) {
+        session.isLocked = false;
+        session.unlockedAt = new Date();
+        session.nextUnlockAt = null;
+        sessionsUpdated = true;
+      }
+    }
+
+    if (sessionsUpdated) {
       await user.save();
     }
 
@@ -224,13 +241,105 @@ exports.unlockNextSession = async (req, res) => {
     nextSession.unlockedAt = new Date();
     await user.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Session unlocked successfully',
       session: nextSession
     });
   } catch (error) {
     console.error('Unlock session error:', error.message);
     res.status(500).json({ message: 'Error unlocking session', error: error.message });
+  }
+};
+
+exports.completeSession = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { sessionNumber } = req.body;
+
+    if (!sessionNumber || sessionNumber < 1 || sessionNumber > 4) {
+      return res.status(400).json({ message: 'Valid sessionNumber (1-4) is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Find the session to complete
+    const session = user.sessions.find(s => s.sessionNumber === sessionNumber);
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (!session.unlockedAt) {
+      return res.status(400).json({ message: 'Session is not unlocked yet' });
+    }
+
+    if (session.completedAt) {
+      return res.status(400).json({ message: 'Session is already completed' });
+    }
+
+    // Mark session as completed
+    session.completedAt = new Date();
+    session.isClaimed = true;
+
+    // Set up countdown for next session (cyclical: 1->2->3->4->1->2->3->4...)
+    let nextSessionNumber;
+    if (parseInt(sessionNumber) === 4) {
+      // After session 4, cycle back to session 1 and reset all other sessions
+      nextSessionNumber = 1;
+
+      // Reset all sessions to look like first cycle
+      user.sessions.forEach(s => {
+        if (s.sessionNumber === 1) {
+          // Session 1 will be unlocked after countdown
+          s.isLocked = true;
+          s.nextUnlockAt = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours
+          s.completedAt = null;
+          s.isClaimed = false;
+          s.unlockedAt = null;
+        } else {
+          // Sessions 2, 3, 4 reset to locked state (not completed)
+          s.isLocked = true;
+          s.nextUnlockAt = null;
+          s.completedAt = null;
+          s.isClaimed = false;
+          s.unlockedAt = null;
+        }
+      });
+    } else {
+      // Normal progression to next session
+      nextSessionNumber = sessionNumber + 1;
+
+      const nextSession = user.sessions.find(s => s.sessionNumber === nextSessionNumber);
+      if (nextSession) {
+        // Set 6-hour countdown
+        const countdownDuration = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        nextSession.isLocked = true;
+        nextSession.nextUnlockAt = new Date(Date.now() + countdownDuration);
+        // Reset next session state for cyclical progression
+        nextSession.completedAt = null;
+        nextSession.isClaimed = false;
+        nextSession.unlockedAt = null;
+      }
+    }
+
+    await user.save();
+
+    // Use the same nextSessionNumber variable for response
+    const response = {
+      message: 'Session completed successfully',
+      session: session,
+      nextSession: user.sessions.find(s => s.sessionNumber === nextSessionNumber),
+      sessionsReset: parseInt(sessionNumber) === 4 // True when cycling back to session 1
+    };
+
+    console.log(`Session ${sessionNumber} completed. Response:`, JSON.stringify(response, null, 2));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Complete session error:', error.message);
+    res.status(500).json({ message: 'Error completing session', error: error.message });
   }
 };
 
@@ -278,6 +387,36 @@ exports.getUserCount = async (req, res) => {
   } catch (error) {
     console.error('Get user count error:', error.message);
     res.status(500).json({ message: 'Error getting user count', error: error.message });
+  }
+};
+
+// Manual reset sessions for testing
+exports.resetUserSessions = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Reset all sessions to initial state
+    user.sessions.forEach(s => {
+      s.completedAt = null;
+      s.isClaimed = false;
+      s.isLocked = s.sessionNumber === 1 ? false : true; // Only session 1 is unlocked
+      s.nextUnlockAt = null;
+      s.unlockedAt = s.sessionNumber === 1 ? new Date() : null; // Only session 1 is unlocked
+    });
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Sessions reset successfully',
+      sessions: user.sessions
+    });
+  } catch (error) {
+    console.error('Reset sessions error:', error.message);
+    res.status(500).json({ message: 'Error resetting sessions', error: error.message });
   }
 };
 
