@@ -73,6 +73,43 @@ const userSchema = new mongoose.Schema({
   country: {
     type: String,
     default: null
+  },
+  fcmTokens: [{
+    token: {
+      type: String,
+      required: true
+    },
+    deviceId: {
+      type: String,
+      default: null
+    },
+    platform: {
+      type: String,
+      enum: ['android', 'ios'],
+      default: null
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    lastUsed: {
+      type: Date,
+      default: Date.now
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  notificationSettings: {
+    sessionUnlocked: {
+      type: Boolean,
+      default: true
+    },
+    pushEnabled: {
+      type: Boolean,
+      default: true
+    }
   }
 });
 

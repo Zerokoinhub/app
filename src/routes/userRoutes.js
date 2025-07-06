@@ -34,4 +34,9 @@ router.get('/count', userController.getUserCount);
 router.put('/calculator-usage', verifyFirebaseToken, userController.incrementCalculatorUsage);
 router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance); // New route
 
+// FCM Token Management Routes
+router.post('/fcm-token', verifyFirebaseToken, userController.updateFCMToken);
+router.delete('/fcm-token', verifyFirebaseToken, userController.removeFCMToken);
+router.put('/notification-settings', verifyFirebaseToken, userController.updateNotificationSettings);
+
 module.exports = router;

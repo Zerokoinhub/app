@@ -1,8 +1,9 @@
 const User = require('../models/User');
 const crypto = require('crypto');
-const { getTodayUTC, getNextSessionUnlockTime, SESSIONS_PER_DAY } = require('../utils/session');
+const { getTodayUTC, getNextSessionUnlockTime, SESSIONS_PER_DAY, SESSION_INTERVAL } = require('../utils/session');
 const geoip = require('geoip-lite');
 const { getName } = require('country-list');
+const notificationService = require('../services/notificationService');
 
 const generateInviteCode = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -102,6 +103,7 @@ exports.syncFirebaseUser = async (req, res) => {
           inviteCode: user.inviteCode,
           recentAmount: user.recentAmount,
           balance: user.balance,
+          walletAddresses: user.walletAddresses,
           country: user.country
         }
       });
@@ -138,6 +140,7 @@ exports.syncFirebaseUser = async (req, res) => {
           inviteCode: newUser.inviteCode,
           recentAmount: newUser.recentAmount,
           balance: newUser.balance,
+          walletAddresses: newUser.walletAddresses,
           country: newUser.country
         }
       });
@@ -166,6 +169,7 @@ exports.getUserProfile = async (req, res) => {
         referredBy: user.referredBy,
         recentAmount: user.recentAmount,
         balance: user.balance,
+        walletAddresses: user.walletAddresses,
         createdAt: user.createdAt
       }
     });
@@ -294,7 +298,7 @@ exports.completeSession = async (req, res) => {
         if (s.sessionNumber === 1) {
           // Session 1 will be unlocked after countdown
           s.isLocked = true;
-          s.nextUnlockAt = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours
+          s.nextUnlockAt = new Date(Date.now() + SESSION_INTERVAL); // Use configured interval
           s.completedAt = null;
           s.isClaimed = false;
           s.unlockedAt = null;
@@ -313,8 +317,8 @@ exports.completeSession = async (req, res) => {
 
       const nextSession = user.sessions.find(s => s.sessionNumber === nextSessionNumber);
       if (nextSession) {
-        // Set 6-hour countdown
-        const countdownDuration = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        // Set countdown duration
+        const countdownDuration = SESSION_INTERVAL; // Use configured interval
         nextSession.isLocked = true;
         nextSession.nextUnlockAt = new Date(Date.now() + countdownDuration);
         // Reset next session state for cyclical progression
@@ -346,10 +350,25 @@ exports.completeSession = async (req, res) => {
 exports.updateWalletAddress = async (req, res) => {
   try {
     const { uid } = req.user; // From Firebase auth middleware
+
+    console.log('📡 Backend: Received request body:', req.body);
+    console.log('📡 Backend: Request headers:', req.headers);
+
     const { walletType, walletAddress } = req.body;
 
-    if (!walletType || !walletAddress) {
+    console.log(`🔄 Updating wallet address for user ${uid}:`, { walletType, walletAddress });
+    console.log('🔍 Backend: walletType type:', typeof walletType, 'value:', walletType);
+    console.log('🔍 Backend: walletAddress type:', typeof walletAddress, 'value:', walletAddress);
+
+    if (!walletType || walletAddress === undefined || walletAddress === null) {
+      console.log('❌ Backend: Validation failed - missing required fields');
       return res.status(400).json({ message: 'walletType and walletAddress are required' });
+    }
+
+    // Validate wallet address format (basic validation for Ethereum addresses)
+    // Allow empty address for disconnection
+    if (walletAddress !== '' && (!walletAddress.startsWith('0x') || walletAddress.length !== 42)) {
+      return res.status(400).json({ message: 'Invalid wallet address format. Must be a valid Ethereum address (0x...)' });
     }
 
     const user = await User.findOne({ firebaseUid: uid });
@@ -360,15 +379,27 @@ exports.updateWalletAddress = async (req, res) => {
     // Update the correct wallet address
     if (walletType === 'metamask') {
       user.walletAddresses.metamask = walletAddress;
-      user.walletStatus = 'Connected';
+      // Update wallet status based on whether address is empty or not
+      if (walletAddress === '') {
+        user.walletStatus = 'Not Connected';
+      } else {
+        user.walletStatus = 'Connected';
+      }
     } else if (walletType === 'trustWallet') {
       user.walletAddresses.trustWallet = walletAddress;
-      user.walletStatus = 'Connected';
+      // Update wallet status based on whether address is empty or not
+      if (walletAddress === '') {
+        user.walletStatus = 'Not Connected';
+      } else {
+        user.walletStatus = 'Connected';
+      }
     } else {
       return res.status(400).json({ message: 'Invalid walletType' });
     }
 
     await user.save();
+
+    console.log(`✅ Wallet address updated successfully for user ${uid}`);
 
     res.status(200).json({
       message: 'Wallet address updated successfully',
@@ -460,5 +491,139 @@ exports.updateUserBalance = async (req, res) => {
   } catch (error) {
     console.error('Update user balance error:', error.message);
     res.status(500).json({ message: 'Error updating user balance', error: error.message });
+  }
+};
+
+// FCM Token Management
+exports.updateFCMToken = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { fcmToken, deviceId, platform } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ message: 'FCM token is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Initialize fcmTokens array if it doesn't exist
+    if (!user.fcmTokens) {
+      user.fcmTokens = [];
+    }
+
+    // Check if token already exists
+    const existingTokenIndex = user.fcmTokens.findIndex(t => t.token === fcmToken);
+
+    if (existingTokenIndex !== -1) {
+      // Update existing token
+      user.fcmTokens[existingTokenIndex].lastUsed = new Date();
+      user.fcmTokens[existingTokenIndex].isActive = true;
+      if (deviceId) user.fcmTokens[existingTokenIndex].deviceId = deviceId;
+      if (platform) user.fcmTokens[existingTokenIndex].platform = platform;
+    } else {
+      // Add new token
+      user.fcmTokens.push({
+        token: fcmToken,
+        deviceId: deviceId || null,
+        platform: platform || null,
+        isActive: true,
+        lastUsed: new Date(),
+        createdAt: new Date()
+      });
+    }
+
+    // Validate the FCM token
+    const validation = await notificationService.validateFCMToken(fcmToken);
+    if (!validation.valid) {
+      console.warn('Invalid FCM token provided:', fcmToken);
+      // Still save it but mark as inactive
+      if (existingTokenIndex !== -1) {
+        user.fcmTokens[existingTokenIndex].isActive = false;
+      } else {
+        user.fcmTokens[user.fcmTokens.length - 1].isActive = false;
+      }
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'FCM token updated successfully',
+      tokenValid: validation.valid
+    });
+  } catch (error) {
+    console.error('Update FCM token error:', error.message);
+    res.status(500).json({ message: 'Error updating FCM token', error: error.message });
+  }
+};
+
+exports.removeFCMToken = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ message: 'FCM token is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.fcmTokens) {
+      return res.status(404).json({ message: 'No FCM tokens found' });
+    }
+
+    // Remove the token
+    user.fcmTokens = user.fcmTokens.filter(t => t.token !== fcmToken);
+    await user.save();
+
+    res.status(200).json({
+      message: 'FCM token removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove FCM token error:', error.message);
+    res.status(500).json({ message: 'Error removing FCM token', error: error.message });
+  }
+};
+
+exports.updateNotificationSettings = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { sessionUnlocked, pushEnabled } = req.body;
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Initialize notification settings if they don't exist
+    if (!user.notificationSettings) {
+      user.notificationSettings = {
+        sessionUnlocked: true,
+        pushEnabled: true
+      };
+    }
+
+    // Update settings
+    if (typeof sessionUnlocked === 'boolean') {
+      user.notificationSettings.sessionUnlocked = sessionUnlocked;
+    }
+    if (typeof pushEnabled === 'boolean') {
+      user.notificationSettings.pushEnabled = pushEnabled;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Notification settings updated successfully',
+      notificationSettings: user.notificationSettings
+    });
+  } catch (error) {
+    console.error('Update notification settings error:', error.message);
+    res.status(500).json({ message: 'Error updating notification settings', error: error.message });
   }
 };
