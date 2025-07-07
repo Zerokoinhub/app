@@ -16,6 +16,7 @@ const getNextSessionUnlockTime = (previousUnlockTime) => {
 
 module.exports = {
   SESSIONS_PER_DAY,
+  SESSION_INTERVAL,
   getTodayUTC,
   getNextSessionUnlockTime
 };

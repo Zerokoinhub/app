@@ -102,6 +102,7 @@ exports.syncFirebaseUser = async (req, res) => {
           inviteCode: user.inviteCode,
           recentAmount: user.recentAmount,
           balance: user.balance,
+          walletAddresses: user.walletAddresses,
           country: user.country
         }
       });
@@ -138,6 +139,7 @@ exports.syncFirebaseUser = async (req, res) => {
           inviteCode: newUser.inviteCode,
           recentAmount: newUser.recentAmount,
           balance: newUser.balance,
+          walletAddresses: newUser.walletAddresses,
           country: newUser.country
         }
       });
@@ -166,6 +168,7 @@ exports.getUserProfile = async (req, res) => {
         referredBy: user.referredBy,
         recentAmount: user.recentAmount,
         balance: user.balance,
+        walletAddresses: user.walletAddresses,
         createdAt: user.createdAt
       }
     });
@@ -183,19 +186,36 @@ exports.getUserSessions = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Reset sessions if it's a new UTC day
-    const todayUTC = getTodayUTC();
-    if (!user.sessionsResetAt || user.sessionsResetAt < todayUTC) {
+    // Initialize sessions if they don't exist (for new users only)
+    if (!user.sessions || user.sessions.length === 0) {
       user.sessions = [];
       for (let i = 1; i <= SESSIONS_PER_DAY; i++) {
         user.sessions.push({
           sessionNumber: i,
-          unlockedAt: null,
-          isClaimed: false
+          unlockedAt: i === 1 ? new Date() : null, // First session is always unlocked
+          completedAt: null,
+          nextUnlockAt: null,
+          isClaimed: false,
+          isLocked: i > 1 // Sessions 2-4 start locked
         });
       }
-      user.lastSessionUnlockAt = null;
-      user.sessionsResetAt = todayUTC;
+      await user.save();
+    }
+
+    // Check and update locked sessions based on countdown
+    const now = new Date();
+    let sessionsUpdated = false;
+
+    for (let session of user.sessions) {
+      if (session.isLocked && session.nextUnlockAt && now >= session.nextUnlockAt) {
+        session.isLocked = false;
+        session.unlockedAt = new Date();
+        session.nextUnlockAt = null;
+        sessionsUpdated = true;
+      }
+    }
+
+    if (sessionsUpdated) {
       await user.save();
     }
 
@@ -224,7 +244,7 @@ exports.unlockNextSession = async (req, res) => {
     nextSession.unlockedAt = new Date();
     await user.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Session unlocked successfully',
       session: nextSession
     });
@@ -234,13 +254,120 @@ exports.unlockNextSession = async (req, res) => {
   }
 };
 
+exports.completeSession = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { sessionNumber } = req.body;
+
+    if (!sessionNumber || sessionNumber < 1 || sessionNumber > 4) {
+      return res.status(400).json({ message: 'Valid sessionNumber (1-4) is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Find the session to complete
+    const session = user.sessions.find(s => s.sessionNumber === sessionNumber);
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (!session.unlockedAt) {
+      return res.status(400).json({ message: 'Session is not unlocked yet' });
+    }
+
+    if (session.completedAt) {
+      return res.status(400).json({ message: 'Session is already completed' });
+    }
+
+    // Mark session as completed
+    session.completedAt = new Date();
+    session.isClaimed = true;
+
+    // Set up countdown for next session (cyclical: 1->2->3->4->1->2->3->4...)
+    let nextSessionNumber;
+    if (parseInt(sessionNumber) === 4) {
+      // After session 4, cycle back to session 1 and reset all other sessions
+      nextSessionNumber = 1;
+
+      // Reset all sessions to look like first cycle
+      user.sessions.forEach(s => {
+        if (s.sessionNumber === 1) {
+          // Session 1 will be unlocked after countdown
+          s.isLocked = true;
+          s.nextUnlockAt = new Date(Date.now() + SESSION_INTERVAL); // Use configured interval
+          s.completedAt = null;
+          s.isClaimed = false;
+          s.unlockedAt = null;
+        } else {
+          // Sessions 2, 3, 4 reset to locked state (not completed)
+          s.isLocked = true;
+          s.nextUnlockAt = null;
+          s.completedAt = null;
+          s.isClaimed = false;
+          s.unlockedAt = null;
+        }
+      });
+    } else {
+      // Normal progression to next session
+      nextSessionNumber = sessionNumber + 1;
+
+      const nextSession = user.sessions.find(s => s.sessionNumber === nextSessionNumber);
+      if (nextSession) {
+        // Set countdown duration
+        const countdownDuration = SESSION_INTERVAL; // Use configured interval
+        nextSession.isLocked = true;
+        nextSession.nextUnlockAt = new Date(Date.now() + countdownDuration);
+        // Reset next session state for cyclical progression
+        nextSession.completedAt = null;
+        nextSession.isClaimed = false;
+        nextSession.unlockedAt = null;
+      }
+    }
+
+    await user.save();
+
+    // Use the same nextSessionNumber variable for response
+    const response = {
+      message: 'Session completed successfully',
+      session: session,
+      nextSession: user.sessions.find(s => s.sessionNumber === nextSessionNumber),
+      sessionsReset: parseInt(sessionNumber) === 4 // True when cycling back to session 1
+    };
+
+    console.log(`Session ${sessionNumber} completed. Response:`, JSON.stringify(response, null, 2));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Complete session error:', error.message);
+    res.status(500).json({ message: 'Error completing session', error: error.message });
+  }
+};
+
 exports.updateWalletAddress = async (req, res) => {
   try {
     const { uid } = req.user; // From Firebase auth middleware
+
+    console.log('📡 Backend: Received request body:', req.body);
+    console.log('📡 Backend: Request headers:', req.headers);
+
     const { walletType, walletAddress } = req.body;
 
-    if (!walletType || !walletAddress) {
+    console.log(`🔄 Updating wallet address for user ${uid}:`, { walletType, walletAddress });
+    console.log('🔍 Backend: walletType type:', typeof walletType, 'value:', walletType);
+    console.log('🔍 Backend: walletAddress type:', typeof walletAddress, 'value:', walletAddress);
+
+    if (!walletType || walletAddress === undefined || walletAddress === null) {
+      console.log('❌ Backend: Validation failed - missing required fields');
       return res.status(400).json({ message: 'walletType and walletAddress are required' });
+    }
+
+    // Validate wallet address format (basic validation for Ethereum addresses)
+    // Allow empty address for disconnection
+    if (walletAddress !== '' && (!walletAddress.startsWith('0x') || walletAddress.length !== 42)) {
+      return res.status(400).json({ message: 'Invalid wallet address format. Must be a valid Ethereum address (0x...)' });
     }
 
     const user = await User.findOne({ firebaseUid: uid });
@@ -251,15 +378,27 @@ exports.updateWalletAddress = async (req, res) => {
     // Update the correct wallet address
     if (walletType === 'metamask') {
       user.walletAddresses.metamask = walletAddress;
-      user.walletStatus = 'Connected';
+      // Update wallet status based on whether address is empty or not
+      if (walletAddress === '') {
+        user.walletStatus = 'Not Connected';
+      } else {
+        user.walletStatus = 'Connected';
+      }
     } else if (walletType === 'trustWallet') {
       user.walletAddresses.trustWallet = walletAddress;
-      user.walletStatus = 'Connected';
+      // Update wallet status based on whether address is empty or not
+      if (walletAddress === '') {
+        user.walletStatus = 'Not Connected';
+      } else {
+        user.walletStatus = 'Connected';
+      }
     } else {
       return res.status(400).json({ message: 'Invalid walletType' });
     }
 
     await user.save();
+
+    console.log(`✅ Wallet address updated successfully for user ${uid}`);
 
     res.status(200).json({
       message: 'Wallet address updated successfully',
@@ -278,6 +417,36 @@ exports.getUserCount = async (req, res) => {
   } catch (error) {
     console.error('Get user count error:', error.message);
     res.status(500).json({ message: 'Error getting user count', error: error.message });
+  }
+};
+
+// Manual reset sessions for testing
+exports.resetUserSessions = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Reset all sessions to initial state
+    user.sessions.forEach(s => {
+      s.completedAt = null;
+      s.isClaimed = false;
+      s.isLocked = s.sessionNumber === 1 ? false : true; // Only session 1 is unlocked
+      s.nextUnlockAt = null;
+      s.unlockedAt = s.sessionNumber === 1 ? new Date() : null; // Only session 1 is unlocked
+    });
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Sessions reset successfully',
+      sessions: user.sessions
+    });
+  } catch (error) {
+    console.error('Reset sessions error:', error.message);
+    res.status(500).json({ message: 'Error resetting sessions', error: error.message });
   }
 };
 
@@ -321,6 +490,140 @@ exports.updateUserBalance = async (req, res) => {
   } catch (error) {
     console.error('Update user balance error:', error.message);
     res.status(500).json({ message: 'Error updating user balance', error: error.message });
+  }
+};
+
+// FCM Token Management
+exports.updateFCMToken = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { fcmToken, deviceId, platform } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ message: 'FCM token is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Initialize fcmTokens array if it doesn't exist
+    if (!user.fcmTokens) {
+      user.fcmTokens = [];
+    }
+
+    // Check if token already exists
+    const existingTokenIndex = user.fcmTokens.findIndex(t => t.token === fcmToken);
+
+    if (existingTokenIndex !== -1) {
+      // Update existing token
+      user.fcmTokens[existingTokenIndex].lastUsed = new Date();
+      user.fcmTokens[existingTokenIndex].isActive = true;
+      if (deviceId) user.fcmTokens[existingTokenIndex].deviceId = deviceId;
+      if (platform) user.fcmTokens[existingTokenIndex].platform = platform;
+    } else {
+      // Add new token
+      user.fcmTokens.push({
+        token: fcmToken,
+        deviceId: deviceId || null,
+        platform: platform || null,
+        isActive: true,
+        lastUsed: new Date(),
+        createdAt: new Date()
+      });
+    }
+
+    // Validate the FCM token
+    const validation = await notificationService.validateFCMToken(fcmToken);
+    if (!validation.valid) {
+      console.warn('Invalid FCM token provided:', fcmToken);
+      // Still save it but mark as inactive
+      if (existingTokenIndex !== -1) {
+        user.fcmTokens[existingTokenIndex].isActive = false;
+      } else {
+        user.fcmTokens[user.fcmTokens.length - 1].isActive = false;
+      }
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'FCM token updated successfully',
+      tokenValid: validation.valid
+    });
+  } catch (error) {
+    console.error('Update FCM token error:', error.message);
+    res.status(500).json({ message: 'Error updating FCM token', error: error.message });
+  }
+};
+
+exports.removeFCMToken = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ message: 'FCM token is required' });
+    }
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.fcmTokens) {
+      return res.status(404).json({ message: 'No FCM tokens found' });
+    }
+
+    // Remove the token
+    user.fcmTokens = user.fcmTokens.filter(t => t.token !== fcmToken);
+    await user.save();
+
+    res.status(200).json({
+      message: 'FCM token removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove FCM token error:', error.message);
+    res.status(500).json({ message: 'Error removing FCM token', error: error.message });
+  }
+};
+
+exports.updateNotificationSettings = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const { sessionUnlocked, pushEnabled } = req.body;
+
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Initialize notification settings if they don't exist
+    if (!user.notificationSettings) {
+      user.notificationSettings = {
+        sessionUnlocked: true,
+        pushEnabled: true
+      };
+    }
+
+    // Update settings
+    if (typeof sessionUnlocked === 'boolean') {
+      user.notificationSettings.sessionUnlocked = sessionUnlocked;
+    }
+    if (typeof pushEnabled === 'boolean') {
+      user.notificationSettings.pushEnabled = pushEnabled;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Notification settings updated successfully',
+      notificationSettings: user.notificationSettings
+    });
+  } catch (error) {
+    console.error('Update notification settings error:', error.message);
+    res.status(500).json({ message: 'Error updating notification settings', error: error.message });
   }
 };
 

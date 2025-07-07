@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const userRoutes = require('./routes/userRoutes');
-const tokenRoutes = require('./routes/tokenRoutes');  
+const tokenRoutes = require('./routes/tokenRoutes');
 const withdrawRoutes = require('./routes/withdrawRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -26,7 +26,6 @@ app.use("/api/withdraw", withdrawRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB successfully');
@@ -38,7 +37,6 @@ mongoose.connect(MONGODB_URI)
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
 });
-
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

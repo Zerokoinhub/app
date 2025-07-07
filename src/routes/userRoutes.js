@@ -18,7 +18,7 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const { verifyFirebaseToken } = require('../middleware/firebaseAuth');
-const { getUserSessions, unlockNextSession } = require('../controllers/userController');
+const { getUserSessions, unlockNextSession, completeSession } = require('../controllers/userController');
 const upload = require('../config/multer');
 
 router.post('/register', userController.registerUser);
@@ -26,12 +26,19 @@ router.get('/invite/:inviteCode', userController.getInviteDetails);
 router.post('/referral', userController.processReferral);
 router.get('/sessions', verifyFirebaseToken, getUserSessions);
 router.post('/unlock', verifyFirebaseToken, unlockNextSession);
+router.post('/complete-session', verifyFirebaseToken, completeSession);
+router.post('/reset-sessions', verifyFirebaseToken, userController.resetUserSessions);
 router.post('/sync', verifyFirebaseToken, userController.syncFirebaseUser);
 router.get('/profile', verifyFirebaseToken, userController.getUserProfile);
 router.put('/wallet-address', verifyFirebaseToken, userController.updateWalletAddress);
 router.get('/count', userController.getUserCount);
 router.put('/calculator-usage', verifyFirebaseToken, userController.incrementCalculatorUsage);
-router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance); // New route
+router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance);
 router.post('/upload-screenshots', verifyFirebaseToken, upload.array('screenshots', 6), userController.uploadScreenshots);
+
+// FCM Token Management Routes
+router.post('/fcm-token', verifyFirebaseToken, userController.updateFCMToken);
+router.delete('/fcm-token', verifyFirebaseToken, userController.removeFCMToken);
+router.put('/notification-settings', verifyFirebaseToken, userController.updateNotificationSettings);
 
 module.exports = router;
