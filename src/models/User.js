@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema({
     enum: ['Not Connected', 'Connected'],
     default: 'Not Connected'
   },
+  screenshots: {
+    type: [String],
+    default: []
+  },
   sessions: [{
     sessionNumber: Number,
     unlockedAt: Date,

@@ -323,3 +323,28 @@ exports.updateUserBalance = async (req, res) => {
     res.status(500).json({ message: 'Error updating user balance', error: error.message });
   }
 };
+
+exports.uploadScreenshots = async (req, res) => {
+  try {
+    const { uid } = req.user; // From Firebase auth middleware
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // req.files is an array of uploaded files
+    const urls = req.files.map(file => file.path);
+
+    // Limit to 6 screenshots
+    user.screenshots = urls.slice(0, 6);
+    await user.save();
+
+    res.status(200).json({
+      message: 'Screenshots uploaded successfully',
+      screenshots: user.screenshots
+    });
+  } catch (error) {
+    console.error('Upload screenshots error:', error.message);
+    res.status(500).json({ message: 'Error uploading screenshots', error: error.message });
+  }
+};

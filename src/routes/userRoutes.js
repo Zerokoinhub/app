@@ -19,6 +19,7 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { verifyFirebaseToken } = require('../middleware/firebaseAuth');
 const { getUserSessions, unlockNextSession } = require('../controllers/userController');
+const upload = require('../config/multer');
 
 router.post('/register', userController.registerUser);
 router.get('/invite/:inviteCode', userController.getInviteDetails);
@@ -31,5 +32,6 @@ router.put('/wallet-address', verifyFirebaseToken, userController.updateWalletAd
 router.get('/count', userController.getUserCount);
 router.put('/calculator-usage', verifyFirebaseToken, userController.incrementCalculatorUsage);
 router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance); // New route
+router.post('/upload-screenshots', verifyFirebaseToken, upload.array('screenshots', 6), userController.uploadScreenshots);
 
 module.exports = router;
