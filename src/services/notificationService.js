@@ -135,4 +135,6 @@ class NotificationService {
   }
 }
 
-module.exports = new NotificationService();
+// Export both the class and a singleton instance
+module.exports = NotificationService;
+module.exports.instance = new NotificationService();

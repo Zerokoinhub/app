@@ -5,7 +5,9 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "test-notification": "node scripts/quick_test.js",
+    "send-notification": "node scripts/send_notification.js"
   },
   "dependencies": {
     "cloudinary": "^1.41.3",

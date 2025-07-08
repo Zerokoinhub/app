@@ -1,3 +1,10 @@
+// Load environment variables first, before any other imports
+const path = require('path');
+const envPath = path.join(__dirname, '../.env');
+console.log('🔧 Loading .env from:', envPath);
+console.log('🔧 __dirname:', __dirname);
+require('dotenv').config({ path: envPath });
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -8,7 +15,7 @@ const tokenRoutes = require('./routes/tokenRoutes');
 const withdrawRoutes = require('./routes/withdrawRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-require('dotenv').config();
+const sessionNotificationService = require('./services/sessionNotificationService');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mstorsulam786:1nkSX6KEOBmdx0ox@cluster0.frhaken.mongodb.net/zero_koin';
 const PORT = process.env.PORT || 3000;
@@ -29,6 +36,10 @@ app.use('/api/notifications', notificationRoutes);
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB successfully');
+
+    // Start session notification service
+    sessionNotificationService.start();
+    console.log('🔔 Session notification service started');
   })
   .catch((error) => {
     console.error('MongoDB connection error:', error);

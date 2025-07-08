@@ -1,5 +1,6 @@
 const User = require('../models/User');
-const notificationService = require('./notificationService');
+const NotificationService = require('./notificationService');
+const notificationService = new NotificationService();
 
 class SessionNotificationService {
   constructor() {

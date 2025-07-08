@@ -34,7 +34,14 @@ router.put('/wallet-address', verifyFirebaseToken, userController.updateWalletAd
 router.get('/count', userController.getUserCount);
 router.put('/calculator-usage', verifyFirebaseToken, userController.incrementCalculatorUsage);
 router.put('/update-balance', verifyFirebaseToken, userController.updateUserBalance);
-router.post('/upload-screenshots', verifyFirebaseToken, upload.array('screenshots', 6), userController.uploadScreenshots);
+router.post('/upload-screenshots', verifyFirebaseToken, (req, res, next) => {
+  console.log('🔍 Route middleware - User:', req.user);
+  console.log('🔍 Route middleware - Headers:', req.headers['content-type']);
+  next();
+}, upload.array('screenshots', 6), (req, res, next) => {
+  console.log('🔍 After multer - Files:', req.files ? req.files.length : 0);
+  next();
+}, userController.uploadScreenshots);
 
 // FCM Token Management Routes
 router.post('/fcm-token', verifyFirebaseToken, userController.updateFCMToken);

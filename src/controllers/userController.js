@@ -1,8 +1,10 @@
 const User = require('../models/User');
 const crypto = require('crypto');
-const { getTodayUTC, getNextSessionUnlockTime, SESSIONS_PER_DAY } = require('../utils/session');
+const { getTodayUTC, getNextSessionUnlockTime, SESSIONS_PER_DAY, SESSION_INTERVAL } = require('../utils/session');
 const geoip = require('geoip-lite');
 const { getName } = require('country-list');
+const NotificationService = require('../services/notificationService');
+const notificationService = new NotificationService();
 
 const generateInviteCode = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -629,18 +631,37 @@ exports.updateNotificationSettings = async (req, res) => {
 
 exports.uploadScreenshots = async (req, res) => {
   try {
+    console.log('📸 Upload screenshots request received');
+    console.log('📸 Files received:', req.files ? req.files.length : 0);
+    console.log('📸 User from middleware:', req.user);
+
     const { uid } = req.user; // From Firebase auth middleware
     const user = await User.findOne({ firebaseUid: uid });
     if (!user) {
+      console.log('❌ User not found for uid:', uid);
       return res.status(404).json({ message: 'User not found' });
     }
 
+    console.log('✅ User found:', user.email);
+
+    if (!req.files || req.files.length === 0) {
+      console.log('❌ No files received in request');
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+
     // req.files is an array of uploaded files
-    const urls = req.files.map(file => file.path);
+    const urls = req.files.map(file => {
+      console.log('📸 Processing file:', file.originalname, 'URL:', file.path);
+      return file.path;
+    });
+
+    console.log('📸 All file URLs:', urls);
 
     // Limit to 6 screenshots
     user.screenshots = urls.slice(0, 6);
     await user.save();
+
+    console.log('✅ Screenshots saved to user:', user.screenshots);
 
     res.status(200).json({
       message: 'Screenshots uploaded successfully',
@@ -648,6 +669,7 @@ exports.uploadScreenshots = async (req, res) => {
     });
   } catch (error) {
     console.error('Upload screenshots error:', error.message);
+    console.error('Full error:', error);
     res.status(500).json({ message: 'Error uploading screenshots', error: error.message });
   }
 };
