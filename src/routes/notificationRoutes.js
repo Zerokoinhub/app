@@ -10,6 +10,7 @@ router.get('/debug/:id', notificationController.getRawNotification);
 
 // Admin routes (protected by Firebase auth)
 router.post('/add', verifyFirebaseToken, upload.single('image'), notificationController.addNotification);
+router.post('/add-upcoming', verifyFirebaseToken, upload.single('image'), notificationController.addUpcomingNotification);
 router.put('/:id/mark-sent', verifyFirebaseToken, notificationController.markAsSent);
 router.delete('/:id', verifyFirebaseToken, notificationController.deleteNotification);
 

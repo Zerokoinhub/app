@@ -45,7 +45,8 @@ exports.getAllNotifications = async (req, res) => {
         id: notification._id,
         image: notification.image,
         title: notification.title,
-        description: notification.description,
+        content: notification.content,
+        link: notification.link,
         isSent: notification.isSent,
         sentAt: notification.sentAt,
         createdAt: notification.createdAt
@@ -123,5 +124,39 @@ exports.getRawNotification = async (req, res) => {
   } catch (error) {
     console.error('Get raw notification error:', error.message);
     res.status(500).json({ message: 'Error fetching raw notification', error: error.message });
+  }
+};
+
+// Add an upcoming notification (Admin only)
+exports.addUpcomingNotification = async (req, res) => {
+  try {
+    const { title, content, link } = req.body;
+    const image = req.file ? req.file.path : null;
+    if (!title || !content || !image) {
+      return res.status(400).json({ message: 'Title, content, and image are required' });
+    }
+    const notification = new Notification({
+      image,
+      title,
+      content,
+      link,
+      isSent: false
+    });
+    await notification.save();
+    res.status(201).json({
+      message: 'Upcoming notification added successfully',
+      notification: {
+        id: notification._id,
+        image: notification.image,
+        title: notification.title,
+        content: notification.content,
+        link: notification.link,
+        isSent: notification.isSent,
+        createdAt: notification.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Add upcoming notification error:', error.message);
+    res.status(500).json({ message: 'Error adding upcoming notification', error: error.message });
   }
 }; 

@@ -13,6 +13,14 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  content: {
+    type: String,
+    default: ''
+  },
+  link: {
+    type: String,
+    default: ''
+  },
   isSent: {
     type: Boolean,
     default: false
