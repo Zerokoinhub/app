@@ -17,6 +17,10 @@ const courseSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  time: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -27,4 +31,4 @@ const courseSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Course', courseSchema); 
+module.exports = mongoose.model('Course', courseSchema);
