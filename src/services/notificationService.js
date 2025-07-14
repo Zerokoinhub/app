@@ -24,18 +24,26 @@ class NotificationService {
         notification: {
           title,
           body,
+          ...(data.image && { image: data.image })
         },
         data: {
           ...data,
           timestamp: Date.now().toString(),
+          // Ensure all data values are strings
+          ...(data.image && { image: data.image }),
+          title: title,
+          body: body,
         },
         android: {
           notification: {
+            title,
+            body,
             icon: 'ic_stat_notificationlogo',
             color: '#0682A2',
             channelId: 'zerokoin_notifications',
             priority: 'high',
             defaultSound: true,
+            ...(data.image && { imageUrl: data.image }),
           },
           priority: 'high',
         },
@@ -49,11 +57,17 @@ class NotificationService {
               badge: 1,
               sound: 'default',
               'content-available': 1,
+              ...(data.image && { 'mutable-content': 1 }),
             },
           },
           headers: {
             'apns-priority': '10',
           },
+          ...(data.image && {
+            fcm_options: {
+              image: data.image
+            }
+          }),
         },
       };
 

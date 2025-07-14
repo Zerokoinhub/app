@@ -3,28 +3,28 @@ const Notification = require('../models/Notification');
 // Add a new notification (Admin only)
 exports.addNotification = async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, content } = req.body;
     const image = req.file ? req.file.path : null;
-    
-    if (!title || !description || !image) {
-      return res.status(400).json({ message: 'Title, description, and image are required' });
+
+    if (!title || !content || !image) {
+      return res.status(400).json({ message: 'Title, content, and image are required' });
     }
 
     const notification = new Notification({
       image,
       title,
-      description
+      content
     });
 
     await notification.save();
 
-    res.status(201).json({ 
+    res.status(201).json({
       message: 'Notification added successfully',
       notification: {
         id: notification._id,
         image: notification.image,
         title: notification.title,
-        description: notification.description,
+        content: notification.content,
         isSent: notification.isSent,
         createdAt: notification.createdAt
       }
@@ -40,7 +40,7 @@ exports.getAllNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({}).sort({ createdAt: -1 });
     
-    res.status(200).json({ 
+    res.status(200).json({
       notifications: notifications.map(notification => ({
         id: notification._id,
         image: notification.image,
@@ -72,13 +72,13 @@ exports.markAsSent = async (req, res) => {
     notification.sentAt = new Date();
     await notification.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Notification marked as sent successfully',
       notification: {
         id: notification._id,
         image: notification.image,
         title: notification.title,
-        description: notification.description,
+        content: notification.content,
         isSent: notification.isSent,
         sentAt: notification.sentAt
       }
@@ -116,10 +116,10 @@ exports.getRawNotification = async (req, res) => {
       return res.status(404).json({ message: 'Notification not found' });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       rawNotification: notification,
       hasImage: !!notification.image,
-      hasDescription: !!notification.description
+      hasContent: !!notification.content
     });
   } catch (error) {
     console.error('Get raw notification error:', error.message);
