@@ -114,7 +114,18 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     }
-  }
+  },
+  readNotifications: [{
+    notificationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Notification',
+      required: true
+    },
+    readAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 });
 
 module.exports = mongoose.model('User', userSchema);
