@@ -53,9 +53,30 @@ exports.getWithdrawalHistory = async (req, res) => {
 
 exports.getWithdrawals = async (req, res) => {
   try {
-    const withdrawals = await Withdrawal.find({})
+    const { uid } = req.user; // From Firebase auth middleware
+    console.log('🔍 DEBUG: getWithdrawals called for Firebase UID:', uid);
+
+    // Find the user first to get their MongoDB _id
+    const user = await User.findOne({ firebaseUid: uid });
+    console.log('🔍 DEBUG: Found user in database:', user ? { _id: user._id, name: user.name, email: user.email } : 'NOT FOUND');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Filter withdrawals by the authenticated user
+    const withdrawals = await Withdrawal.find({ user: user._id })
       .populate('user', 'name')
       .sort({ createdAt: -1 });
+
+    console.log('🔍 DEBUG: Found withdrawals for user:', withdrawals.length);
+    console.log('🔍 DEBUG: Withdrawal details:', withdrawals.map(w => ({
+      amount: w.amount,
+      userName: w.user?.name,
+      userId: w.user?._id,
+      status: w.status
+    })));
+
     res.status(200).json({
       transactions: withdrawals.map(w => ({
         date: w.createdAt.toISOString().split('T')[0],

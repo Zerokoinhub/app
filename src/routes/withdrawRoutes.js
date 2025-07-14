@@ -5,6 +5,6 @@ const auth = require('../middleware/auth');
 
 router.post('/withdraw-coins', auth, withdrawCoins);
 router.get('/withdrawal-history', auth, getWithdrawalHistory);
-router.get('/transactions', getWithdrawals);
+router.get('/transactions', auth, getWithdrawals);
 
 module.exports = router;
