@@ -7,7 +7,9 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test-notification": "node scripts/quick_test.js",
-    "send-notification": "node scripts/send_notification.js"
+    "send-notification": "node scripts/send_notification.js",
+    "send-instagram-notification": "node scripts/send_instagram_notification.js",
+    "send-batch-instagram": "node scripts/send_batch_instagram_notifications.js"
   },
   "dependencies": {
     "cloudinary": "^1.41.3",
