@@ -5,11 +5,18 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  imageUrl: {
+    type: String,
+    default: ''
+  },
   title: {
     type: String,
     required: true
   },
-
+  message: {
+    type: String,
+    default: ''
+  },
   content: {
     type: String,
     default: ''
@@ -17,6 +24,16 @@ const notificationSchema = new mongoose.Schema({
   link: {
     type: String,
     default: ''
+  },
+  type: {
+    type: String,
+    enum: ['general', 'promotional', 'update', 'alert'],
+    default: 'general'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'normal', 'high', 'urgent', 'new-user'],
+    default: 'normal'
   },
   isSent: {
     type: Boolean,

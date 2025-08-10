@@ -6,10 +6,10 @@ console.log('🔧 __dirname:', __dirname);
 require('dotenv').config({ path: envPath });
 
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const connectDB = require('./config/database');
 const userRoutes = require('./routes/userRoutes');
 const tokenRoutes = require('./routes/tokenRoutes');
 const withdrawRoutes = require('./routes/withdrawRoutes');
@@ -18,7 +18,6 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const timeRoutes = require('./routes/timeRoutes');
 const sessionNotificationService = require('./services/sessionNotificationService');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mstorsulam786:1nkSX6KEOBmdx0ox@cluster0.frhaken.mongodb.net/zero_koin';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
@@ -35,7 +34,8 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/time', timeRoutes);
 
-mongoose.connect(MONGODB_URI)
+// Connect to MongoDB
+connectDB()
   .then(() => {
     console.log('Connected to MongoDB successfully');
 

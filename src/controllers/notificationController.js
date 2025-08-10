@@ -4,17 +4,22 @@ const User = require('../models/User');
 // Add a new notification (Admin only)
 exports.addNotification = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, message, link, type, priority } = req.body;
     const image = req.file ? req.file.path : null;
 
-    if (!title || !content || !image) {
-      return res.status(400).json({ message: 'Title, content, and image are required' });
+    if (!title || (!content && !message) || !image) {
+      return res.status(400).json({ message: 'Title, content/message, and image are required' });
     }
 
     const notification = new Notification({
-      image,
+      image: image,
+      imageUrl: image,
       title,
-      content
+      content: content || message,
+      message: message || content,
+      link: link || '',
+      type: type || 'general',
+      priority: priority || 'normal'
     });
 
     await notification.save();
@@ -22,10 +27,13 @@ exports.addNotification = async (req, res) => {
     res.status(201).json({
       message: 'Notification added successfully',
       notification: {
-        id: notification._id,
-        image: notification.image,
+        _id: notification._id,
         title: notification.title,
-        content: notification.content,
+        message: notification.message,
+        imageUrl: notification.imageUrl || notification.image,
+        link: notification.link,
+        type: notification.type,
+        priority: notification.priority,
         isSent: notification.isSent,
         createdAt: notification.createdAt
       }
@@ -44,9 +52,9 @@ exports.getAllNotifications = async (req, res) => {
     res.status(200).json({
       notifications: notifications.map(notification => ({
         id: notification._id,
-        image: notification.image,
         title: notification.title,
-        content: notification.content,
+        content: notification.message || notification.content,
+        imageUrl: notification.imageUrl || notification.image,
         link: notification.link,
         isSent: notification.isSent,
         sentAt: notification.sentAt,
@@ -76,12 +84,18 @@ exports.markAsSent = async (req, res) => {
     res.status(200).json({
       message: 'Notification marked as sent successfully',
       notification: {
-        id: notification._id,
-        image: notification.image,
+        _id: notification._id,
         title: notification.title,
-        content: notification.content,
+        message: notification.message,
+        imageUrl: notification.imageUrl || notification.image,
+        link: notification.link,
+        type: notification.type,
+        priority: notification.priority,
         isSent: notification.isSent,
-        sentAt: notification.sentAt
+        sentAt: notification.sentAt,
+        createdAt: notification.createdAt,
+        updatedAt: notification.updatedAt,
+        __v: notification.__v
       }
     });
   } catch (error) {
@@ -131,27 +145,33 @@ exports.getRawNotification = async (req, res) => {
 // Add an upcoming notification (Admin only)
 exports.addUpcomingNotification = async (req, res) => {
   try {
-    const { title, content, link } = req.body;
+    const { title, content, message, link, type, priority } = req.body;
     const image = req.file ? req.file.path : null;
-    if (!title || !content || !image) {
-      return res.status(400).json({ message: 'Title, content, and image are required' });
+    if (!title || (!content && !message) || !image) {
+      return res.status(400).json({ message: 'Title, content/message, and image are required' });
     }
     const notification = new Notification({
-      image,
+      image: image,
+      imageUrl: image,
       title,
-      content,
-      link,
+      content: content || message,
+      message: message || content,
+      link: link || '',
+      type: type || 'general',
+      priority: priority || 'normal',
       isSent: false
     });
     await notification.save();
     res.status(201).json({
       message: 'Upcoming notification added successfully',
       notification: {
-        id: notification._id,
-        image: notification.image,
+        _id: notification._id,
         title: notification.title,
-        content: notification.content,
+        message: notification.message,
+        imageUrl: notification.imageUrl || notification.image,
         link: notification.link,
+        type: notification.type,
+        priority: notification.priority,
         isSent: notification.isSent,
         createdAt: notification.createdAt
       }
@@ -301,14 +321,18 @@ exports.getNotificationsWithReadStatus = async (req, res) => {
 
     // Add read status to each notification
     const notificationsWithReadStatus = notifications.map(notification => ({
-      id: notification._id,
-      image: notification.image,
+      _id: notification._id,
       title: notification.title,
-      content: notification.content,
+      message: notification.content || notification.message,
+      imageUrl: notification.imageUrl || notification.image,
       link: notification.link,
+      type: notification.type || 'general',
+      priority: notification.priority || 'normal',
       isSent: notification.isSent,
       sentAt: notification.sentAt,
       createdAt: notification.createdAt,
+      updatedAt: notification.updatedAt,
+      __v: notification.__v,
       isRead: readNotificationIds.includes(notification._id.toString())
     }));
 
