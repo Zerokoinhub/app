@@ -17,6 +17,7 @@ const courseRoutes = require('./routes/courseRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const timeRoutes = require('./routes/timeRoutes');
 const sessionNotificationService = require('./services/sessionNotificationService');
+const autoNotificationService = require('./services/autoNotificationService');
 
 const PORT = process.env.PORT || 3000;
 
@@ -42,6 +43,10 @@ connectDB()
     // Start session notification service
     sessionNotificationService.start();
     console.log('🔔 Session notification service started');
+
+    // Start automatic notification service
+    autoNotificationService.start();
+    console.log('📱 Automatic notification service started');
   })
   .catch((error) => {
     console.error('MongoDB connection error:', error);

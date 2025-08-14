@@ -9,8 +9,7 @@
       "test-notification": "node scripts/quick_test.js",
       "test-notification-flow": "node scripts/test_notification_flow.js",
       "test-notification-buttons": "node scripts/test_notification_with_buttons.js",
-      "test-automatic-push": "node scripts/test_automatic_push.js",
-      "send-push-for-unsent": "node scripts/send_push_for_unsent.js",
+      "test-fully-automatic": "node scripts/test_fully_automatic.js",
       "send-notification": "node scripts/send_notification.js",
       "send-instagram-notification": "node scripts/send_instagram_notification.js",
       "send-batch-instagram": "node scripts/send_batch_instagram_notifications.js"

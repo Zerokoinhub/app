@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   image: {
     type: String,
-    required: true
+    required: false,
+    default: ''
   },
   imageUrl: {
     type: String,
@@ -60,8 +61,11 @@ const notificationSchema = new mongoose.Schema({
 // Post-save middleware to automatically send push notifications
 notificationSchema.post('save', async function(doc, next) {
   try {
+    console.log('🔔 Post-save middleware triggered for notification:', doc.title);
+    console.log('🔍 isNew:', this.isNew, 'isSent:', doc.isSent, 'autoSendPush:', doc.autoSendPush);
+    
     // Only send push notifications for new notifications that haven't been sent yet
-    if (this.isNew && !doc.isSent && doc.autoSendPush) {
+    if (!doc.isSent && doc.autoSendPush) {
       console.log('🔔 New notification saved to database, triggering automatic push notifications...');
       
       // Use setTimeout to run this asynchronously after the save operation completes
@@ -79,7 +83,7 @@ notificationSchema.post('save', async function(doc, next) {
 
       if (users.length === 0) {
         console.log('⚠️ No users with FCM tokens found for automatic push notifications');
-        return next();
+        return; // Do not call next() here, as it's in a setTimeout
       }
 
       console.log(`📱 Found ${users.length} users with FCM tokens for automatic push`);

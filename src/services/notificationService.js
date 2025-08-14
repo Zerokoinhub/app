@@ -21,11 +21,9 @@ class NotificationService {
 
       const message = {
         token: fcmToken,
-        notification: {
-          title,
-          body,
-          ...(data.image && { image: data.image })
-        },
+        // IMPORTANT: Do not include top-level `notification` so Android receives a data-only
+        // message. This lets the Flutter app render a local notification with action buttons
+        // in both foreground and background.
         data: {
           ...data,
           timestamp: Date.now().toString(),
@@ -39,17 +37,6 @@ class NotificationService {
           action_dismiss: 'true',
         },
         android: {
-          notification: {
-            title,
-            body,
-            icon: 'ic_stat_notificationlogo',
-            color: '#0682A2',
-            channelId: 'zerokoin_notifications',
-            priority: 'high',
-            defaultSound: true,
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-            ...(data.image && { imageUrl: data.image }),
-          },
           priority: 'high',
           // Add action buttons for Android
           data: {
@@ -68,10 +55,8 @@ class NotificationService {
         apns: {
           payload: {
             aps: {
-              alert: {
-                title,
-                body,
-              },
+              // Keep iOS alert so iOS users still see notifications even when the app is killed.
+              alert: { title, body },
               badge: 1,
               sound: 'default',
               'content-available': 1,

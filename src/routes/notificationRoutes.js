@@ -6,7 +6,6 @@ const upload = require('../config/multer');
 
 // Public routes
 router.get('/all', notificationController.getAllNotifications);
-router.get('/debug/:id', notificationController.getRawNotification);
 
 // User routes (protected by Firebase auth)
 router.get('/with-read-status', verifyFirebaseToken, notificationController.getNotificationsWithReadStatus);
@@ -21,4 +20,4 @@ router.put('/:id/mark-sent', verifyFirebaseToken, notificationController.markAsS
 router.post('/:id/send-push', verifyFirebaseToken, notificationController.sendPushNotification);
 router.delete('/:id', verifyFirebaseToken, notificationController.deleteNotification);
 
-module.exports = router; 
+module.exports = router;
