@@ -1,36 +1,38 @@
 {
-  "name": "backend_zero_koin",
-  "version": "1.0.0",
-  "description": "Professional Node.js Backend",
-  "main": "src/app.js",
-  "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "test-notification": "node scripts/quick_test.js",
-    "test-notification-flow": "node scripts/test_notification_flow.js",
-    "test-notification-buttons": "node scripts/test_notification_with_buttons.js",
-    "send-notification": "node scripts/send_notification.js",
-    "send-instagram-notification": "node scripts/send_instagram_notification.js",
-    "send-batch-instagram": "node scripts/send_batch_instagram_notifications.js"
-  },
-  "dependencies": {
-    "cloudinary": "^1.41.3",
-    "cors": "^2.8.5",
-    "country-list": "^2.3.0",
-    "dotenv": "^16.5.0",
-    "express": "^4.18.2",
-    "firebase-admin": "^13.4.0",
-    "geoip-lite": "^1.4.10",
-    "google-auth-library": "^9.15.1",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.1.0",
-    "morgan": "^1.10.0",
-    "multer": "^2.0.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "nodemailer": "^7.0.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
+    "name": "backend_zero_koin",
+    "version": "1.0.0",
+    "description": "Professional Node.js Backend",
+    "main": "src/app.js",
+    "scripts": {
+      "start": "node src/app.js",
+      "dev": "nodemon src/app.js",
+      "test-notification": "node scripts/quick_test.js",
+      "test-notification-flow": "node scripts/test_notification_flow.js",
+      "test-notification-buttons": "node scripts/test_notification_with_buttons.js",
+      "test-automatic-push": "node scripts/test_automatic_push.js",
+      "send-push-for-unsent": "node scripts/send_push_for_unsent.js",
+      "send-notification": "node scripts/send_notification.js",
+      "send-instagram-notification": "node scripts/send_instagram_notification.js",
+      "send-batch-instagram": "node scripts/send_batch_instagram_notifications.js"
+    },
+    "dependencies": {
+      "cloudinary": "^1.41.3",
+      "cors": "^2.8.5",
+      "country-list": "^2.3.0",
+      "dotenv": "^16.5.0",
+      "express": "^4.18.2",
+      "firebase-admin": "^13.4.0",
+      "geoip-lite": "^1.4.10",
+      "google-auth-library": "^9.15.1",
+      "helmet": "^7.1.0",
+      "jsonwebtoken": "^9.0.2",
+      "mongoose": "^8.1.0",
+      "morgan": "^1.10.0",
+      "multer": "^2.0.1",
+      "multer-storage-cloudinary": "^4.0.0",
+      "nodemailer": "^7.0.3"
+    },
+    "devDependencies": {
+      "nodemon": "^3.1.10"
+    }
   }
-}
