@@ -18,6 +18,7 @@ router.post('/mark-all-read', verifyFirebaseToken, notificationController.markAl
 router.post('/add', verifyFirebaseToken, upload.single('image'), notificationController.addNotification);
 router.post('/add-upcoming', verifyFirebaseToken, upload.single('image'), notificationController.addUpcomingNotification);
 router.put('/:id/mark-sent', verifyFirebaseToken, notificationController.markAsSent);
+router.post('/:id/send-push', verifyFirebaseToken, notificationController.sendPushNotification);
 router.delete('/:id', verifyFirebaseToken, notificationController.deleteNotification);
 
 module.exports = router; 

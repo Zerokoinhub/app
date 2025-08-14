@@ -1,10 +1,11 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const NotificationService = require('../services/notificationService');
 
 // Add a new notification (Admin only)
 exports.addNotification = async (req, res) => {
   try {
-    const { title, content, message, link, type, priority } = req.body;
+    const { title, content, message, link, type, priority, sendPushNotification = true } = req.body;
     const image = req.file ? req.file.path : null;
 
     if (!title || (!content && !message) || !image) {
@@ -24,6 +25,93 @@ exports.addNotification = async (req, res) => {
 
     await notification.save();
 
+    let pushResults = [];
+    
+    // Send push notifications to all users if requested
+    if (sendPushNotification) {
+      console.log('🔔 Sending push notifications to all users...');
+      
+      try {
+        // Get all users with FCM tokens
+        const users = await User.find({
+          fcmTokens: { $exists: true, $ne: [] },
+          'notificationSettings.pushEnabled': { $ne: false }
+        });
+
+        console.log(`📱 Found ${users.length} users with FCM tokens`);
+
+        const notificationService = new NotificationService();
+        let successCount = 0;
+        let failureCount = 0;
+        let invalidTokens = [];
+
+        // Send notifications to each user
+        for (const user of users) {
+          const activeTokens = user.fcmTokens.filter(token => token.isActive);
+          
+          for (const tokenData of activeTokens) {
+            try {
+              const result = await notificationService.sendNotificationToUser(
+                tokenData.token,
+                title,
+                content || message,
+                {
+                  type: type || 'general',
+                  image: image,
+                  link: link || '',
+                  notificationId: notification._id.toString(),
+                  priority: priority || 'normal'
+                }
+              );
+
+              if (result.success) {
+                successCount++;
+                console.log(`✅ Notification sent to user ${user.firebaseUid || user.inviteCode} (${tokenData.platform || 'unknown'})`);
+              } else {
+                failureCount++;
+                if (result.shouldRemoveToken) {
+                  invalidTokens.push({ userId: user._id, token: tokenData.token });
+                }
+                console.warn(`❌ Failed to send to user ${user.firebaseUid || user.inviteCode}: ${result.error}`);
+              }
+            } catch (error) {
+              failureCount++;
+              console.error(`💥 Error sending to token ${tokenData.token.substring(0, 20)}...:`, error);
+            }
+          }
+        }
+
+        // Clean up invalid tokens
+        if (invalidTokens.length > 0) {
+          for (const { userId, token } of invalidTokens) {
+            await User.updateOne(
+              { _id: userId },
+              { $pull: { fcmTokens: { token: token } } }
+            );
+          }
+          console.log(`🗑️ Removed ${invalidTokens.length} invalid FCM tokens`);
+        }
+
+        // Mark notification as sent
+        notification.isSent = true;
+        notification.sentAt = new Date();
+        await notification.save();
+
+        pushResults = {
+          sent: successCount,
+          failed: failureCount,
+          totalUsers: users.length,
+          invalidTokensRemoved: invalidTokens.length
+        };
+
+        console.log(`📊 Push notification summary: ${successCount} sent, ${failureCount} failed`);
+
+      } catch (pushError) {
+        console.error('❌ Error sending push notifications:', pushError);
+        pushResults = { error: pushError.message };
+      }
+    }
+
     res.status(201).json({
       message: 'Notification added successfully',
       notification: {
@@ -35,8 +123,10 @@ exports.addNotification = async (req, res) => {
         type: notification.type,
         priority: notification.priority,
         isSent: notification.isSent,
+        sentAt: notification.sentAt,
         createdAt: notification.createdAt
-      }
+      },
+      pushNotificationResults: sendPushNotification ? pushResults : 'Push notifications disabled'
     });
   } catch (error) {
     console.error('Add notification error:', error.message);
@@ -104,6 +194,103 @@ exports.markAsSent = async (req, res) => {
   }
 };
 
+// Send push notification for existing notification (Admin only)
+exports.sendPushNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const notification = await Notification.findById(id);
+    if (!notification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    console.log('🔔 Sending push notifications for existing notification...');
+    
+    // Get all users with FCM tokens
+    const users = await User.find({
+      fcmTokens: { $exists: true, $ne: [] },
+      'notificationSettings.pushEnabled': { $ne: false }
+    });
+
+    console.log(`📱 Found ${users.length} users with FCM tokens`);
+
+    const notificationService = new NotificationService();
+    let successCount = 0;
+    let failureCount = 0;
+    let invalidTokens = [];
+
+    // Send notifications to each user
+    for (const user of users) {
+      const activeTokens = user.fcmTokens.filter(token => token.isActive);
+      
+      for (const tokenData of activeTokens) {
+        try {
+          const result = await notificationService.sendNotificationToUser(
+            tokenData.token,
+            notification.title,
+            notification.content || notification.message,
+            {
+              type: notification.type || 'general',
+              image: notification.imageUrl || notification.image,
+              link: notification.link || '',
+              notificationId: notification._id.toString(),
+              priority: notification.priority || 'normal'
+            }
+          );
+
+          if (result.success) {
+            successCount++;
+            console.log(`✅ Notification sent to user ${user.firebaseUid || user.inviteCode} (${tokenData.platform || 'unknown'})`);
+          } else {
+            failureCount++;
+            if (result.shouldRemoveToken) {
+              invalidTokens.push({ userId: user._id, token: tokenData.token });
+            }
+            console.warn(`❌ Failed to send to user ${user.firebaseUid || user.inviteCode}: ${result.error}`);
+          }
+        } catch (error) {
+          failureCount++;
+          console.error(`💥 Error sending to token ${tokenData.token.substring(0, 20)}...:`, error);
+        }
+      }
+    }
+
+    // Clean up invalid tokens
+    if (invalidTokens.length > 0) {
+      for (const { userId, token } of invalidTokens) {
+        await User.updateOne(
+          { _id: userId },
+          { $pull: { fcmTokens: { token: token } } }
+        );
+      }
+      console.log(`🗑️ Removed ${invalidTokens.length} invalid FCM tokens`);
+    }
+
+    // Mark notification as sent
+    notification.isSent = true;
+    notification.sentAt = new Date();
+    await notification.save();
+
+    const pushResults = {
+      sent: successCount,
+      failed: failureCount,
+      totalUsers: users.length,
+      invalidTokensRemoved: invalidTokens.length
+    };
+
+    console.log(`📊 Push notification summary: ${successCount} sent, ${failureCount} failed`);
+
+    res.status(200).json({
+      message: 'Push notifications sent successfully',
+      notificationId: notification._id,
+      pushNotificationResults: pushResults
+    });
+  } catch (error) {
+    console.error('Send push notification error:', error.message);
+    res.status(500).json({ message: 'Error sending push notifications', error: error.message });
+  }
+};
+
 // Delete a notification (Admin only)
 exports.deleteNotification = async (req, res) => {
   try {
@@ -145,7 +332,7 @@ exports.getRawNotification = async (req, res) => {
 // Add an upcoming notification (Admin only)
 exports.addUpcomingNotification = async (req, res) => {
   try {
-    const { title, content, message, link, type, priority } = req.body;
+    const { title, content, message, link, type, priority, sendPushNotification = false } = req.body;
     const image = req.file ? req.file.path : null;
     if (!title || (!content && !message) || !image) {
       return res.status(400).json({ message: 'Title, content/message, and image are required' });
@@ -162,6 +349,94 @@ exports.addUpcomingNotification = async (req, res) => {
       isSent: false
     });
     await notification.save();
+
+    let pushResults = 'Push notifications not sent (upcoming notification)';
+    
+    // Send push notifications immediately if requested (useful for instant notifications)
+    if (sendPushNotification) {
+      console.log('🔔 Sending immediate push notifications for upcoming notification...');
+      
+      try {
+        // Get all users with FCM tokens
+        const users = await User.find({
+          fcmTokens: { $exists: true, $ne: [] },
+          'notificationSettings.pushEnabled': { $ne: false }
+        });
+
+        console.log(`📱 Found ${users.length} users with FCM tokens`);
+
+        const notificationService = new NotificationService();
+        let successCount = 0;
+        let failureCount = 0;
+        let invalidTokens = [];
+
+        // Send notifications to each user
+        for (const user of users) {
+          const activeTokens = user.fcmTokens.filter(token => token.isActive);
+          
+          for (const tokenData of activeTokens) {
+            try {
+              const result = await notificationService.sendNotificationToUser(
+                tokenData.token,
+                title,
+                content || message,
+                {
+                  type: type || 'general',
+                  image: image,
+                  link: link || '',
+                  notificationId: notification._id.toString(),
+                  priority: priority || 'normal'
+                }
+              );
+
+              if (result.success) {
+                successCount++;
+                console.log(`✅ Notification sent to user ${user.firebaseUid || user.inviteCode} (${tokenData.platform || 'unknown'})`);
+              } else {
+                failureCount++;
+                if (result.shouldRemoveToken) {
+                  invalidTokens.push({ userId: user._id, token: tokenData.token });
+                }
+                console.warn(`❌ Failed to send to user ${user.firebaseUid || user.inviteCode}: ${result.error}`);
+              }
+            } catch (error) {
+              failureCount++;
+              console.error(`💥 Error sending to token ${tokenData.token.substring(0, 20)}...:`, error);
+            }
+          }
+        }
+
+        // Clean up invalid tokens
+        if (invalidTokens.length > 0) {
+          for (const { userId, token } of invalidTokens) {
+            await User.updateOne(
+              { _id: userId },
+              { $pull: { fcmTokens: { token: token } } }
+            );
+          }
+          console.log(`🗑️ Removed ${invalidTokens.length} invalid FCM tokens`);
+        }
+
+        // Mark notification as sent if we sent push notifications
+        notification.isSent = true;
+        notification.sentAt = new Date();
+        await notification.save();
+
+        pushResults = {
+          sent: successCount,
+          failed: failureCount,
+          totalUsers: users.length,
+          invalidTokensRemoved: invalidTokens.length
+        };
+
+        console.log(`📊 Push notification summary: ${successCount} sent, ${failureCount} failed`);
+
+      } catch (pushError) {
+        console.error('❌ Error sending push notifications:', pushError);
+        pushResults = { error: pushError.message };
+      }
+    }
+
     res.status(201).json({
       message: 'Upcoming notification added successfully',
       notification: {
@@ -173,8 +448,10 @@ exports.addUpcomingNotification = async (req, res) => {
         type: notification.type,
         priority: notification.priority,
         isSent: notification.isSent,
+        sentAt: notification.sentAt,
         createdAt: notification.createdAt
-      }
+      },
+      pushNotificationResults: pushResults
     });
   } catch (error) {
     console.error('Add upcoming notification error:', error.message);

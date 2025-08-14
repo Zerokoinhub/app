@@ -33,6 +33,10 @@ class NotificationService {
           ...(data.image && { image: data.image }),
           title: title,
           body: body,
+          // Add action data for handling button clicks
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+          action_open: 'true',
+          action_dismiss: 'true',
         },
         android: {
           notification: {
@@ -43,9 +47,23 @@ class NotificationService {
             channelId: 'zerokoin_notifications',
             priority: 'high',
             defaultSound: true,
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
             ...(data.image && { imageUrl: data.image }),
           },
           priority: 'high',
+          // Add action buttons for Android
+          data: {
+            ...Object.fromEntries(
+              Object.entries(data).map(([key, value]) => [key, String(value)])
+            ),
+            timestamp: Date.now().toString(),
+            title: String(title),
+            body: String(body),
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            action_open: 'true',
+            action_dismiss: 'true',
+            has_actions: 'true'
+          }
         },
         apns: {
           payload: {
@@ -57,8 +75,13 @@ class NotificationService {
               badge: 1,
               sound: 'default',
               'content-available': 1,
+              category: 'ZEROKOIN_CATEGORY',
               ...(data.image && { 'mutable-content': 1 }),
             },
+            // Custom data for iOS action handling
+            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            action_open: 'true',
+            action_dismiss: 'true',
           },
           headers: {
             'apns-priority': '10',
